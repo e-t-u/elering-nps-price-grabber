@@ -2,6 +2,9 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use rust_decimal::prelude::*;
 use serde::{Deserialize, Deserializer};
+use std::ops::Bound::{Excluded, Included};
+
+use sqlx::postgres::{types::PgRange, PgPool};
 
 #[derive(Deserialize)]
 struct Row {
@@ -20,7 +23,7 @@ where
     Decimal::from_str(&s).map_err(serde::de::Error::custom)
 }
 
-pub fn handle_csv(csv: String) {
+async fn handle_csv(csv: String, pool: &PgPool) {
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b';')
         .has_headers(true)
@@ -28,10 +31,35 @@ pub fn handle_csv(csv: String) {
     for row in rdr.records() {
         let r: Row = row.unwrap().clone().deserialize(None).unwrap();
         println!("{} - {}", &r.timestamp, &r.price);
+        let range: PgRange<NaiveDateTime> = PgRange {
+            start: Included(r.timestamp.naive_utc()),
+            end: Excluded(
+                r.timestamp
+                    .checked_add_signed(Duration::hours(1))
+                    .unwrap()
+                    .naive_utc(),
+            ),
+        };
+        let res = sqlx::query(
+            "INSERT INTO nordpool_price
+                    (time, region, price)
+                    VALUES($1, $2, $3)",
+        )
+        .bind(&range)
+        .bind("ee")
+        .bind(&r.price)
+        .execute(pool)
+        .await;
+
+        if res.is_err() {
+            println!("Exiting with error: {:?}", res);
+            return;
+        }
     }
 }
 
-pub fn main() {
+#[tokio::main]
+async fn main() {
     let start_date: NaiveDateTime = NaiveDate::from_ymd(2018, 1, 1).and_hms(0, 0, 0);
 
     let end_date = start_date
@@ -55,6 +83,13 @@ pub fn main() {
         .unwrap()
         .into_string()
         .unwrap();
+    /*
+    use std::fs;
+    let mut body = fs::read_to_string("data.csv").unwrap().to_string();
+    */
 
-    handle_csv(body);
+    let pgsql_url = "postgresql:/meters".to_string();
+    let pool = PgPool::connect(&pgsql_url).await.unwrap();
+
+    handle_csv(body, &pool).await;
 }

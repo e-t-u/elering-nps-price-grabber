@@ -10,10 +10,13 @@ Create database schema:
 
 .. code-block:: sql
 
-    CREATE TABLE nordpool_price (
-        "time" tsrange,
-        "region" text,
-        price decimal(8, 2)
-    );
+   CREATE EXTENSION btree_gist;
 
-    CREATE INDEX ON nordpool_price (time, region);
+   CREATE TABLE nordpool_price (
+       "time" tsrange,
+       "region" text,
+       price decimal(8, 2),
+       EXCLUDE USING GIST (region WITH =, time WITH &&)
+   );
+
+   CREATE INDEX ON nordpool_price (time, region);
