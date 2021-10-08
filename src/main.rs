@@ -58,18 +58,33 @@ async fn handle_csv(csv: String, pool: &PgPool) {
     }
 }
 
+#[derive(sqlx::FromRow, Debug)]
+struct MaxDatetime {
+    max: Option<NaiveDateTime>,
+}
+
 #[tokio::main]
 async fn main() {
-    let start_date: NaiveDateTime = NaiveDate::from_ymd(2018, 1, 1).and_hms(0, 0, 0);
+    let api_url = "https://dashboard.elering.ee/api/nps/price/csv";
+
+    let pgsql_uri = "postgresql:/meters".to_string();
+    let pool = PgPool::connect(&pgsql_uri).await.unwrap();
+
+    let date_lookup = sqlx::query_as::<_, MaxDatetime>(
+        "SELECT MAX(UPPER(time)) FROM nordpool_price WHERE region = $1"
+    ).bind("ee".to_string()).fetch_one(&pool).await.unwrap();
+
+    let start_date = match date_lookup.max {
+        Some(date) => date,
+        None => NaiveDate::from_ymd(2018, 1, 1).and_hms(0, 0, 0),
+    };
 
     let end_date = start_date
-        .checked_add_signed(Duration::days(1))
+        .checked_add_signed(Duration::days(2))
         .and_then(|dt| dt.checked_sub_signed(Duration::seconds(1)))
         .unwrap();
 
-    let url = "https://dashboard.elering.ee/api/nps/price/csv";
-
-    let body: String = ureq::get(url)
+    let body: String = ureq::get(api_url)
         .query(
             "start",
             &DateTime::<Utc>::from_utc(start_date, Utc).to_rfc3339(),
@@ -83,13 +98,6 @@ async fn main() {
         .unwrap()
         .into_string()
         .unwrap();
-    /*
-    use std::fs;
-    let mut body = fs::read_to_string("data.csv").unwrap().to_string();
-    */
-
-    let pgsql_url = "postgresql:/meters".to_string();
-    let pool = PgPool::connect(&pgsql_url).await.unwrap();
 
     handle_csv(body, &pool).await;
 }
