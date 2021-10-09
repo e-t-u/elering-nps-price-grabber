@@ -23,11 +23,12 @@ where
     Decimal::from_str(&s).map_err(serde::de::Error::custom)
 }
 
-async fn handle_csv(csv: String, pool: &PgPool) {
+async fn handle_csv(csv: String, pool: &PgPool) -> Option<usize> {
     let mut rdr = csv::ReaderBuilder::new()
         .delimiter(b';')
         .has_headers(true)
         .from_reader(csv.as_bytes());
+    let mut rows_added = 0;
     for row in rdr.records() {
         let r: Row = row.unwrap().clone().deserialize(None).unwrap();
         println!("{} - {}", &r.timestamp, &r.price);
@@ -53,9 +54,14 @@ async fn handle_csv(csv: String, pool: &PgPool) {
 
         if res.is_err() {
             println!("Exiting with error: {:?}", res);
-            return;
+            return None;
         }
+        rows_added += 1;
     }
+    if rows_added == 0 {
+        return None
+    }
+    Some(rows_added)
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -63,27 +69,12 @@ struct MaxDatetime {
     max: Option<NaiveDateTime>,
 }
 
-#[tokio::main]
-async fn main() {
+async fn fetch_csv(start_date: NaiveDateTime, duration: Duration, region: &str) -> String {
     let api_url = "https://dashboard.elering.ee/api/nps/price/csv";
-
-    let pgsql_uri = "postgresql:/meters".to_string();
-    let pool = PgPool::connect(&pgsql_uri).await.unwrap();
-
-    let date_lookup = sqlx::query_as::<_, MaxDatetime>(
-        "SELECT MAX(UPPER(time)) FROM nordpool_price WHERE region = $1"
-    ).bind("ee".to_string()).fetch_one(&pool).await.unwrap();
-
-    let start_date = match date_lookup.max {
-        Some(date) => date,
-        None => NaiveDate::from_ymd(2018, 1, 1).and_hms(0, 0, 0),
-    };
-
     let end_date = start_date
-        .checked_add_signed(Duration::days(2))
+        .checked_add_signed(duration)
         .and_then(|dt| dt.checked_sub_signed(Duration::seconds(1)))
         .unwrap();
-
     let body: String = ureq::get(api_url)
         .query(
             "start",
@@ -93,11 +84,45 @@ async fn main() {
             "end",
             &DateTime::<Utc>::from_utc(end_date, Utc).to_rfc3339(),
         )
-        .query("fields", "ee")
+        .query("fields", region)
         .call()
         .unwrap()
         .into_string()
         .unwrap();
+    body
+}
 
-    handle_csv(body, &pool).await;
+#[tokio::main]
+async fn main() {
+    let pgsql_uri = "postgresql:/meters".to_string();
+    let pool = PgPool::connect(&pgsql_uri).await.unwrap();
+
+    let date_lookup = sqlx::query_as::<_, MaxDatetime>(
+        "SELECT MAX(UPPER(time)) FROM nordpool_price WHERE region = $1",
+    )
+    .bind("ee".to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let mut start_date = match date_lookup.max {
+        Some(date) => date,
+        None => NaiveDate::from_ymd(2018, 1, 1).and_hms(0, 0, 0),
+    };
+
+    let timespan = Duration::days(2);
+
+    loop {
+
+        let body: String = fetch_csv(start_date, timespan, "ee").await;
+
+        println!("Fetching data starting from: {}", start_date);
+
+        if let Some(_num_rows) = handle_csv(body, &pool).await {
+            start_date = start_date.checked_add_signed(timespan).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            continue
+        }
+        break
+    }
 }
