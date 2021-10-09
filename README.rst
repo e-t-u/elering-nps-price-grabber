@@ -1,5 +1,5 @@
-WIP!
-====
+Elering Nordpool Spot Price Data Grabber
+========================================
 
 Nordpool price grabber utilizing Elering Dashboard API.
 
