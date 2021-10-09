@@ -94,7 +94,14 @@ async fn fetch_csv(start_date: NaiveDateTime, duration: Duration, region: &str) 
 
 #[tokio::main]
 async fn main() {
-    let pgsql_uri = "postgresql:/meters".to_string();
+    let pgsql_uri = match std::env::var("POSTGRESQL_URL") {
+        Ok(val) => val,
+        Err(_e) => {
+            let v = "postgresql:/meters".to_string();
+            println!("POSTGRESQL_URL not defined, using default: '{}", v);
+            v
+        },
+    };
     let pool = PgPool::connect(&pgsql_uri).await.unwrap();
 
     let date_lookup = sqlx::query_as::<_, MaxDatetime>(
