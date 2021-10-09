@@ -31,7 +31,7 @@ async fn handle_csv(csv: String, pool: &PgPool) -> Option<usize> {
     let mut rows_added = 0;
     for row in rdr.records() {
         let r: Row = row.unwrap().clone().deserialize(None).unwrap();
-        println!("{} - {}", &r.timestamp, &r.price);
+        // println!("{} - {}", &r.timestamp, &r.price);
         let range: PgRange<NaiveDateTime> = PgRange {
             start: Included(r.timestamp.naive_utc()),
             end: Excluded(
