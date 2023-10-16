@@ -4,10 +4,10 @@ apt-get install -y \
   curl \
   git \
   gnupg2 \
-  jq \
+#  jq \
   sudo \
   fish \
-  jed \
+#  jed \
   build-essential \
   openssl
 
@@ -19,8 +19,8 @@ rustup component add rustfmt --toolchain nightly
 rustup component add clippy 
 rustup component add clippy --toolchain nightly
 
-cargo install cargo-expand
-cargo install cargo-edit
+#cargo install cargo-expand
+#cargo install cargo-edit
 
 ## setup and install oh-my-zsh
 #sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
