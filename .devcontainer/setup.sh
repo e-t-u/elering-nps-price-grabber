@@ -3,6 +3,10 @@ apt-get update
 apt-get install -y \
   curl \
   git \
+  fish
+
+exit 0
+
   gnupg2 \
 #  jq \
   sudo \
