@@ -97,7 +97,7 @@ async fn main() {
     let pgsql_uri = match std::env::var("POSTGRESQL_URL") {
         Ok(val) => val,
         Err(_e) => {
-            let v = "postgresql:/meters".to_string();
+            let v = "postgresql:/ele".to_string();
             println!("POSTGRESQL_URL not defined, using default: '{}", v);
             v
         },
