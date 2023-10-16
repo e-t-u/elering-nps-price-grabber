@@ -3,20 +3,16 @@ apt-get update
 apt-get install -y \
   curl \
   git \
-  fish
-
-exit 0
-
-  gnupg2 \
-#  jq \
-  sudo \
   fish \
-#  jed \
+  gnupg2 \
+  jq \
+  sudo \
   build-essential \
   openssl
 
 ## Install rustup and common components
 curl https://sh.rustup.rs -sSf | sh -s -- -y 
+exit0
 rustup install nightly
 rustup component add rustfmt
 rustup component add rustfmt --toolchain nightly
