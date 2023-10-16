@@ -1,9 +1,9 @@
-FROM ubuntu:latest
+FROM rust:latest
 
 WORKDIR /home/codespace
 
 COPY . .
 
-RUN bash ./setup.sh
+#RUN bash ./setup.sh
 
 ENV PATH="/root/.cargo/bin:$PATH"
